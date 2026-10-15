@@ -59,10 +59,10 @@ class TrackerTests(unittest.TestCase):
                 )
                 with patch("builtins.print") as output:
                     self.assertEqual(tracker.get_project_items(), {
-                        "microsoft/WSL": "first", "org/other": "other",
+                        "microsoft/wsl": "first", "org/other": "other",
                     })
                 output.assert_called_once_with(
-                    "Warning: Duplicate project draft title: microsoft/WSL; "
+                    "Warning: Duplicate project draft title: microsoft/wsl; "
                     "reusing first item first, ignoring item duplicate."
                 )
                 if across_pages:
@@ -86,12 +86,20 @@ class TrackerTests(unittest.TestCase):
 
     @patch.object(tracker, "run_graphql")
     def test_active_duplicates_report_both_ids(self, graphql):
-        graphql.return_value = project_page([
-            {"id": "first", "content": {"title": "Azure/AKS"}},
-            {"id": "second", "content": {"title": "azure/aks"}},
-        ])
-        with self.assertRaisesRegex(ValueError, "items first and second"):
-            tracker.get_project_items()
+        for across_pages in (False, True):
+            with self.subTest(across_pages=across_pages):
+                first = {"id": "first", "content": {"title": "Azure/AKS"}}
+                second = {"id": "second", "content": {"title": "azure/aks"}}
+                graphql.side_effect = (
+                    [project_page([first], True, "next"), project_page([second])]
+                    if across_pages else [project_page([first, second])]
+                )
+                with patch("builtins.print") as output:
+                    self.assertEqual(tracker.get_project_items(), {"azure/aks": "first"})
+                output.assert_called_once_with(
+                    "Warning: Duplicate project draft title: azure/aks; "
+                    "reusing first item first, ignoring item second."
+                )
 
     @patch.object(tracker, "run_graphql")
     def test_missing_item_is_refreshed_before_creation(self, graphql):

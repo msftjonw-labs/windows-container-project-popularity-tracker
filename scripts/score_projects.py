@@ -14,10 +14,22 @@ HEADERS = {
 # Target Kubernetes ecosystem repositories to evaluate
 TARGET_REPOSITORIES = [
     {"owner": "kubernetes", "name": "kubernetes"},
-    {"owner": "moby", "name": "moby"},
+    {"owner": "kubernetes", "name": "enhancements"},
+    {"owner": "kubernetes", "name": "community"},
+    {"owner": "kubernetes", "name": "minikube"},
+    {"owner": "helm", "name": "helm"},
+    {"owner": "prometheus", "name": "prometheus"},
     {"owner": "containerd", "name": "containerd"},
+    {"owner": "containerd", "name": "nerdctl"},
+    {"owner": "moby", "name": "moby"},
+    {"owner": "moby", "name": "buildkit"},
+    {"owner": "envoyproxy", "name": "envoy"},
+    {"owner": "argoproj", "name": "argo-cd"},
+    {"owner": "docker", "name": "for-win"},
+    {"owner": "microsoft", "name": "Windows-Containers"},
+    {"owner": "microsoft", "name": "windows-container-tools"},
+    {"owner": "microsoft", "name": "containers-toolkit"},
     {"owner": "Azure", "name": "AKS"},
-    {"owner": "microsoft", "name": "WSL"},
 ]
 
 # GraphQL query to fetch quantitative and qualitative repository signals

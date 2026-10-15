@@ -18,6 +18,9 @@ validates its ID and type before syncing. Each repository is represented by a
 draft item titled `owner/repository`, with its URL in the body: GitHub Projects
 cannot use a repository itself as an issue or pull-request item. Existing drafts
 with the same title are updated rather than duplicated.
+If duplicate draft titles already exist, the script warns and reuses the first
+item returned by the project API. Other duplicates are left untouched and can be
+cleaned up manually; they do not block evaluation or sync.
 
 After writing numeric scores, the script moves the tracked items to the top in
 descending score order (highest first). Keep the project view's sort set to

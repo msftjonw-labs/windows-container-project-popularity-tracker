@@ -43,6 +43,32 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(graphql.call_args.args[1]["cursor"], "next")
 
     @patch.object(tracker, "run_graphql")
+    def test_duplicate_project_drafts_keep_first_item(self, graphql):
+        for across_pages in (False, True):
+            with self.subTest(across_pages=across_pages):
+                first = {"id": "first", "content": {"title": "microsoft/WSL"}}
+                remaining = [
+                    {"id": "duplicate", "content": {"title": "microsoft/WSL"}},
+                    {"id": "other", "content": {"title": "org/other"}},
+                    {"id": "issue", "content": {}},
+                    {"id": "redacted", "content": None},
+                ]
+                graphql.side_effect = (
+                    [project_page([first], True, "next"), project_page(remaining)]
+                    if across_pages else [project_page([first] + remaining)]
+                )
+                with patch("builtins.print") as output:
+                    self.assertEqual(tracker.get_project_items(), {
+                        "microsoft/WSL": "first", "org/other": "other",
+                    })
+                output.assert_called_once_with(
+                    "Warning: Duplicate project draft title: microsoft/WSL; "
+                    "reusing first item first, ignoring item duplicate."
+                )
+                if across_pages:
+                    self.assertEqual(graphql.call_args.args[1]["cursor"], "next")
+
+    @patch.object(tracker, "run_graphql")
     def test_text_score_field_is_rejected(self, graphql):
         data = project_page([])
         data["node"]["field"]["dataType"] = "TEXT"
@@ -58,6 +84,9 @@ class TrackerTests(unittest.TestCase):
             if query == tracker.PROJECT_QUERY:
                 return project_page([
                     {"id": "existing", "content": {"title": "org/a"}},
+                    {"id": "duplicate", "content": {"title": "org/a"}},
+                    {"id": "wsl-first", "content": {"title": "microsoft/WSL"}},
+                    {"id": "wsl-duplicate", "content": {"title": "microsoft/WSL"}},
                 ])
             if query == tracker.REPO_METRICS_QUERY:
                 name = variables["name"]
@@ -76,6 +105,7 @@ class TrackerTests(unittest.TestCase):
         creates = [c.args[1] for c in calls if c.args[0] == tracker.ADD_PROJECT_ITEM_MUTATION]
         self.assertEqual([c["title"] for c in creates], ["org/b", "org/c"])
         updates = [c.args[1] for c in calls if c.args[0] == tracker.UPDATE_FIELD_MUTATION]
+        self.assertEqual([c["itemId"] for c in updates], ["existing", "org/b", "org/c"])
         self.assertEqual([c["value"] for c in updates], [5.0, 50.0, 10.0])
         self.assertTrue(all(isinstance(c["value"], float) for c in updates))
         moves = [c.args[1] for c in calls if c.args[0] == tracker.UPDATE_POSITION_MUTATION]

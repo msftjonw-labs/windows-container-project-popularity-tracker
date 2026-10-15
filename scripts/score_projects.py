@@ -153,7 +153,11 @@ def get_project_items():
       if content and "title" in content:
         title = content["title"]
         if title in items:
-          raise ValueError(f"Duplicate project draft title: {title}")
+          print(
+              f"Warning: Duplicate project draft title: {title}; "
+              f"reusing first item {items[title]}, ignoring item {item['id']}."
+          )
+          continue
         items[title] = item["id"]
     page = project["items"]["pageInfo"]
     if not page["hasNextPage"]:

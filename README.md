@@ -18,6 +18,9 @@ validates its ID and type before syncing. Each repository is represented by a
 draft item titled `owner/repository`, with its URL in the body: GitHub Projects
 cannot use a repository itself as an issue or pull-request item. Existing drafts
 with the same title are updated rather than duplicated.
+If duplicate draft titles already exist, the script warns and reuses the first
+item returned by the project API. Other duplicates are left untouched and can be
+cleaned up manually; they do not block evaluation or sync.
 
 Workflow runs share a concurrency group so only one sync runs at a time. Do not
 run local syncs concurrently with each other or the workflow: draft creation has

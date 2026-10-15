@@ -26,8 +26,7 @@ Workflow runs share a concurrency group so only one sync runs at a time. Do not
 run local syncs concurrently with each other or the workflow: draft creation has
 no atomic uniqueness constraint. Before creating a missing draft, the script
 refreshes the project lookup and compares titles case-insensitively. Archived
-items are ignored. If active duplicate drafts already exist, the script reports
-their item IDs and stops; archive the extras before rerunning. Removing a target
+items are ignored. Removing a target
 does not automatically delete or archive its existing project items.
 
 After writing numeric scores, the script moves the tracked items to the top in

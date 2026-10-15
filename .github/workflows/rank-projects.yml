@@ -18,7 +18,7 @@ jobs:
         with:
           client-id: ${{ vars.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
+          owner: ${{ vars.APP_INSTALLATION_OWNER || github.repository_owner }}
 
       - name: Set up Python
         uses: actions/setup-python@v5

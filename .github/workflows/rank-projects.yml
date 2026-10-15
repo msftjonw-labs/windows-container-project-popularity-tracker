@@ -30,6 +30,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
+      - name: Test Scoring & Sync Script
+        run: python -m unittest discover -s tests -v
+
       # Passes the dynamically generated GitHub App token into the script via GH_TOKEN
       - name: Run Scoring & Sync Script
         env:

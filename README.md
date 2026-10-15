@@ -12,3 +12,17 @@ installed on that account; registering an app alone does not install it.
 For project sync, configure `GH_PROJECT_ID` and `GH_SCORE_FIELD_ID` as repository
 variables and grant the app access to the target project with Projects read/write
 permission.
+
+The score field must be a **Number** field named **Popularity Score**. The script
+validates its ID and type before syncing. Each repository is represented by a
+draft item titled `owner/repository`, with its URL in the body: GitHub Projects
+cannot use a repository itself as an issue or pull-request item. Existing drafts
+with the same title are updated rather than duplicated.
+
+After writing numeric scores, the script moves the tracked items to the top in
+descending score order (highest first). Keep the project view's sort set to
+**Manual**, or select **Popularity Score → Descending** and save the view.
+An explicit view sort overrides manual item positions. API failures fail the
+workflow instead of reporting a successful sync.
+
+Run the regression tests with `python -m unittest discover -s tests -v`.

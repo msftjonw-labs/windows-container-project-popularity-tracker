@@ -1,0 +1,113 @@
+import unittest
+from unittest.mock import Mock, patch
+
+from scripts import score_projects as tracker
+
+
+def project_page(nodes, has_next=False, cursor=None):
+    return {"node": {
+        "field": {"id": "score", "dataType": "NUMBER"},
+        "items": {
+            "nodes": nodes,
+            "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
+        },
+    }}
+
+
+def metrics(title, stars):
+    return {"repository": {
+        "nameWithOwner": title,
+        "stargazerCount": stars,
+        "forkCount": 0,
+        "mergedPRs": {"totalCount": 1},
+        "closedPRs": {"totalCount": 0},
+        "defaultBranchRef": None,
+    }}
+
+
+class TrackerTests(unittest.TestCase):
+    def setUp(self):
+        self.settings = patch.multiple(
+            tracker, GITHUB_TOKEN="test", PROJECT_ID="project", SCORE_FIELD_ID="score"
+        )
+        self.settings.start()
+        self.addCleanup(self.settings.stop)
+
+    @patch.object(tracker, "run_graphql")
+    def test_project_items_are_paginated(self, graphql):
+        graphql.side_effect = [
+            project_page([{"id": "a", "content": {"title": "org/a"}}], True, "next"),
+            project_page([{"id": "b", "content": {"title": "org/b"}}]),
+        ]
+        self.assertEqual(tracker.get_project_items(), {"org/a": "a", "org/b": "b"})
+        self.assertEqual(graphql.call_args.args[1]["cursor"], "next")
+
+    @patch.object(tracker, "run_graphql")
+    def test_text_score_field_is_rejected(self, graphql):
+        data = project_page([])
+        data["node"]["field"]["dataType"] = "TEXT"
+        graphql.return_value = data
+        with self.assertRaisesRegex(ValueError, "numeric"):
+            tracker.get_project_items()
+
+    @patch.object(tracker, "run_graphql")
+    def test_sync_reuses_items_writes_numbers_and_orders_descending(self, graphql):
+        targets = [{"owner": "org", "name": name} for name in ("a", "b", "c")]
+
+        def respond(query, variables):
+            if query == tracker.PROJECT_QUERY:
+                return project_page([
+                    {"id": "existing", "content": {"title": "org/a"}},
+                ])
+            if query == tracker.REPO_METRICS_QUERY:
+                name = variables["name"]
+                return metrics(f"org/{name}", {"a": 100, "b": 1000, "c": 200}[name])
+            if query == tracker.ADD_PROJECT_ITEM_MUTATION:
+                return {"addProjectV2DraftIssue": {
+                    "projectItem": {"id": variables["title"]},
+                }}
+            return {}
+
+        graphql.side_effect = respond
+        with patch.object(tracker, "TARGET_REPOSITORIES", targets):
+            tracker.main()
+
+        calls = graphql.call_args_list
+        creates = [c.args[1] for c in calls if c.args[0] == tracker.ADD_PROJECT_ITEM_MUTATION]
+        self.assertEqual([c["title"] for c in creates], ["org/b", "org/c"])
+        updates = [c.args[1] for c in calls if c.args[0] == tracker.UPDATE_FIELD_MUTATION]
+        self.assertEqual([c["value"] for c in updates], [5.0, 50.0, 10.0])
+        self.assertTrue(all(isinstance(c["value"], float) for c in updates))
+        moves = [c.args[1] for c in calls if c.args[0] == tracker.UPDATE_POSITION_MUTATION]
+        self.assertEqual([(c["itemId"], c["afterId"]) for c in moves], [
+            ("org/b", None), ("org/c", "org/b"), ("existing", "org/c"),
+        ])
+
+    @patch.object(tracker, "run_graphql")
+    def test_repository_failure_fails_run(self, graphql):
+        graphql.side_effect = [project_page([]), RuntimeError("API error")]
+        with patch.object(tracker, "TARGET_REPOSITORIES", [{"owner": "org", "name": "a"}]):
+            with self.assertRaisesRegex(RuntimeError, "org/a"):
+                tracker.main()
+
+    def test_partial_configuration_is_rejected(self):
+        with patch.object(tracker, "SCORE_FIELD_ID", None):
+            with self.assertRaisesRegex(ValueError, "both"):
+                tracker.main()
+
+    @patch.object(tracker.requests, "post")
+    def test_graphql_errors_are_not_treated_as_success(self, post):
+        post.return_value = Mock(status_code=200)
+        post.return_value.json.return_value = {"errors": [{"message": "denied"}]}
+        with self.assertRaisesRegex(RuntimeError, "denied"):
+            tracker.run_graphql("query {}", {})
+        self.assertEqual(post.call_args.kwargs["timeout"], 60)
+
+    def test_mutation_uses_numeric_field_and_metrics_use_valid_arguments(self):
+        self.assertIn("number: $value", tracker.UPDATE_FIELD_MUTATION)
+        self.assertIn("$value: Float!", tracker.UPDATE_FIELD_MUTATION)
+        self.assertNotIn("privacy:", tracker.REPO_METRICS_QUERY)
+
+
+if __name__ == "__main__":
+    unittest.main()

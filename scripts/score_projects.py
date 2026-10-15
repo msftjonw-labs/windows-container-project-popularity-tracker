@@ -1,15 +1,10 @@
 import os
-import sys
 import requests
 
 # Environment Variables
 GITHUB_TOKEN = os.getenv("GH_TOKEN")
 PROJECT_ID = os.getenv("GH_PROJECT_ID")  # The Node ID of your GitHub Project v2
 SCORE_FIELD_ID = os.getenv("GH_SCORE_FIELD_ID")  # Custom field ID for the Score
-
-if not GITHUB_TOKEN:
-    print("Error: GH_TOKEN environment variable is missing.")
-    sys.exit(1)
 
 HEADERS = {
     "Authorization": f"Bearer {GITHUB_TOKEN}",
@@ -36,10 +31,10 @@ query($owner: String!, $name: String!) {
     issues(states: OPEN) {
       totalCount
     }
-    mergedPRs: pullRequests(states: MERGED, privacy: PUBLIC) {
+    mergedPRs: pullRequests(states: MERGED) {
       totalCount
     }
-    closedPRs: pullRequests(states: CLOSED, privacy: PUBLIC) {
+    closedPRs: pullRequests(states: CLOSED) {
       totalCount
     }
     defaultBranchRef {
@@ -55,23 +50,42 @@ query($owner: String!, $name: String!) {
 }
 """
 
-ADD_PROJECT_ITEM_MUTATION = """
-mutation($projectId: ID!, $contentId: ID!) {
-  addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
-    item {
-      id
+PROJECT_QUERY = """
+query($projectId: ID!, $cursor: String) {
+  node(id: $projectId) {
+    ... on ProjectV2 {
+      field(name: "Popularity Score") {
+        ... on ProjectV2Field { id dataType }
+      }
+      items(first: 100, after: $cursor) {
+        nodes {
+          id
+          content { ... on DraftIssue { title } }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
     }
   }
 }
 """
 
+ADD_PROJECT_ITEM_MUTATION = """
+mutation($projectId: ID!, $title: String!, $body: String!) {
+  addProjectV2DraftIssue(input: {
+    projectId: $projectId, title: $title, body: $body
+  }) {
+    projectItem { id }
+  }
+}
+"""
+
 UPDATE_FIELD_MUTATION = """
-mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: String!) {
+mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
   updateProjectV2ItemFieldValue(input: {
     projectId: $projectId
     itemId: $itemId
     fieldId: $fieldId
-    value: { text: $value }
+    value: { number: $value }
   }) {
     projectV2Item {
       id
@@ -81,19 +95,58 @@ mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: String!) {
 """
 
 
-def run_graphql(query, variables={}):
+UPDATE_POSITION_MUTATION = """
+mutation($projectId: ID!, $itemId: ID!, $afterId: ID) {
+  updateProjectV2ItemPosition(input: {
+    projectId: $projectId, itemId: $itemId, afterId: $afterId
+  }) {
+    clientMutationId
+  }
+}
+"""
+
+
+def run_graphql(query, variables=None):
   response = requests.post(
       "https://api.github.com/graphql",
       json={"query": query, "variables": variables},
       headers=HEADERS,
+      timeout=60,
   )
   if response.status_code != 200:
-    raise Exception(f"GraphQL API Error: {response.status_code} - {response.text}")
+    raise RuntimeError(f"GraphQL API Error: {response.status_code} - {response.text}")
   
   result = response.json()
   if "errors" in result:
-    raise Exception(f"GraphQL Errors: {result['errors']}")
+    raise RuntimeError(f"GraphQL Errors: {result['errors']}")
   return result["data"]
+
+
+def get_project_items():
+  items = {}
+  cursor = None
+  while True:
+    project = run_graphql(PROJECT_QUERY, {
+        "projectId": PROJECT_ID, "cursor": cursor
+    })["node"]
+    if not project or "items" not in project:
+      raise ValueError("GH_PROJECT_ID must identify an accessible ProjectV2.")
+    field = project["field"]
+    if not field or field.get("id") != SCORE_FIELD_ID or field.get("dataType") != "NUMBER":
+      raise ValueError(
+          "GH_SCORE_FIELD_ID must identify the numeric Popularity Score field."
+      )
+    for item in project["items"]["nodes"]:
+      content = item.get("content")
+      if content and "title" in content:
+        title = content["title"]
+        if title in items:
+          raise ValueError(f"Duplicate project draft title: {title}")
+        items[title] = item["id"]
+    page = project["items"]["pageInfo"]
+    if not page["hasNextPage"]:
+      return items
+    cursor = page["endCursor"]
 
 
 def calculate_score(repo_data):
@@ -127,8 +180,15 @@ def calculate_score(repo_data):
 
 
 def main():
+  if not GITHUB_TOKEN:
+    raise ValueError("GH_TOKEN environment variable is missing.")
+  if bool(PROJECT_ID) != bool(SCORE_FIELD_ID):
+    raise ValueError("Set both GH_PROJECT_ID and GH_SCORE_FIELD_ID for project sync.")
   print("Starting Kubernetes OSS popularity evaluation using GitHub App Token...")
-  
+  items = get_project_items() if PROJECT_ID else {}
+  scored_items = []
+  failures = []
+
   for repo_info in TARGET_REPOSITORIES:
     owner = repo_info["owner"]
     name = repo_info["name"]
@@ -143,27 +203,41 @@ def main():
 
       # Sync to Project v2 if Project ID and Field ID are configured
       if PROJECT_ID and SCORE_FIELD_ID:
-        # 1. Add repository item to the project board
-        add_res = run_graphql(ADD_PROJECT_ITEM_MUTATION, {
-            "projectId": PROJECT_ID,
-            "contentId": repo["id"]
-        })
-        item_id = add_res["addProjectV2ItemById"]["item"]["id"]
+        title = repo["nameWithOwner"]
+        item_id = items.get(title)
+        if not item_id:
+          add_res = run_graphql(ADD_PROJECT_ITEM_MUTATION, {
+              "projectId": PROJECT_ID,
+              "title": title,
+              "body": f"Repository: https://github.com/{title}"
+          })
+          item_id = add_res["addProjectV2DraftIssue"]["projectItem"]["id"]
+          items[title] = item_id
 
         # 2. Update the custom score field on the project board item
         run_graphql(UPDATE_FIELD_MUTATION, {
             "projectId": PROJECT_ID,
             "itemId": item_id,
             "fieldId": SCORE_FIELD_ID,
-            "value": str(score)
+            "value": score
         })
+        scored_items.append((score, title, item_id))
         print(f"-> Successfully synced {owner}/{name} to GitHub Project v2.")
       else:
         print("-> Skipped project board sync (GH_PROJECT_ID or GH_SCORE_FIELD_ID not provided).")
 
-    except Exception as e:
+    except (requests.RequestException, RuntimeError, ValueError, KeyError, TypeError) as e:
+      failures.append(f"{owner}/{name}")
       print(f"Error processing {owner}/{name}: {e}")
 
+  after_id = None
+  for score, title, item_id in sorted(scored_items, key=lambda item: (-item[0], item[1])):
+    run_graphql(UPDATE_POSITION_MUTATION, {
+        "projectId": PROJECT_ID, "itemId": item_id, "afterId": after_id
+    })
+    after_id = item_id
+  if failures:
+    raise RuntimeError(f"Evaluation failed for: {', '.join(failures)}")
   print("\nEvaluation and sync complete!")
 
 

@@ -4,6 +4,10 @@ on:
     - cron: '0 8 * * 1' # Runs every Monday at 08:00 UTC
   workflow_dispatch: # Allows manual triggers from the Actions tab
 
+concurrency:
+  group: popularity-project-sync
+  cancel-in-progress: false
+
 jobs:
   evaluate-and-sync:
     runs-on: ubuntu-latest

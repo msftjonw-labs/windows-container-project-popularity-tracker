@@ -72,6 +72,7 @@ query($projectId: ID!, $cursor: String) {
       items(first: 100, after: $cursor) {
         nodes {
           id
+          isArchived
           content { ... on DraftIssue { title } }
         }
         pageInfo { hasNextPage endCursor }
@@ -149,11 +150,17 @@ def get_project_items():
           "GH_SCORE_FIELD_ID must identify the numeric Popularity Score field."
       )
     for item in project["items"]["nodes"]:
+      if item.get("isArchived"):
+        continue
       content = item.get("content")
       if content and "title" in content:
-        title = content["title"]
+        title = content["title"].casefold()
         if title in items:
-          raise ValueError(f"Duplicate project draft title: {title}")
+          raise ValueError(
+              f"Duplicate project draft title: {title} "
+              f"(items {items[title]} and {item['id']}). "
+              "Archive the extra draft before rerunning."
+          )
         items[title] = item["id"]
     page = project["items"]["pageInfo"]
     if not page["hasNextPage"]:
@@ -216,7 +223,12 @@ def main():
       # Sync to Project v2 if Project ID and Field ID are configured
       if PROJECT_ID and SCORE_FIELD_ID:
         title = repo["nameWithOwner"]
-        item_id = items.get(title)
+        key = title.casefold()
+        item_id = items.get(key)
+        if not item_id:
+          # Recheck before creating; the startup snapshot may be stale.
+          items.update(get_project_items())
+          item_id = items.get(key)
         if not item_id:
           add_res = run_graphql(ADD_PROJECT_ITEM_MUTATION, {
               "projectId": PROJECT_ID,
@@ -224,7 +236,7 @@ def main():
               "body": f"Repository: https://github.com/{title}"
           })
           item_id = add_res["addProjectV2DraftIssue"]["projectItem"]["id"]
-          items[title] = item_id
+          items[key] = item_id
 
         # 2. Update the custom score field on the project board item
         run_graphql(UPDATE_FIELD_MUTATION, {

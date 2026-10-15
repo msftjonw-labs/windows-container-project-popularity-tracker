@@ -19,6 +19,14 @@ draft item titled `owner/repository`, with its URL in the body: GitHub Projects
 cannot use a repository itself as an issue or pull-request item. Existing drafts
 with the same title are updated rather than duplicated.
 
+Workflow runs share a concurrency group so only one sync runs at a time. Do not
+run local syncs concurrently with each other or the workflow: draft creation has
+no atomic uniqueness constraint. Before creating a missing draft, the script
+refreshes the project lookup and compares titles case-insensitively. Archived
+items are ignored. If active duplicate drafts already exist, the script reports
+their item IDs and stops; archive the extras before rerunning. Removing a target
+does not automatically delete or archive its existing project items.
+
 After writing numeric scores, the script moves the tracked items to the top in
 descending score order (highest first). Keep the project view's sort set to
 **Manual**, or select **Popularity Score → Descending** and save the view.

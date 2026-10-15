@@ -51,6 +51,41 @@ class TrackerTests(unittest.TestCase):
             tracker.get_project_items()
 
     @patch.object(tracker, "run_graphql")
+    def test_archived_duplicates_are_ignored_and_titles_normalized(self, graphql):
+        graphql.return_value = project_page([
+            {"id": "active", "content": {"title": "Azure/AKS"}},
+            {"id": "old", "isArchived": True, "content": {"title": "azure/aks"}},
+        ])
+        self.assertEqual(tracker.get_project_items(), {"azure/aks": "active"})
+
+    @patch.object(tracker, "run_graphql")
+    def test_active_duplicates_report_both_ids(self, graphql):
+        graphql.return_value = project_page([
+            {"id": "first", "content": {"title": "Azure/AKS"}},
+            {"id": "second", "content": {"title": "azure/aks"}},
+        ])
+        with self.assertRaisesRegex(ValueError, "items first and second"):
+            tracker.get_project_items()
+
+    @patch.object(tracker, "run_graphql")
+    def test_missing_item_is_refreshed_before_creation(self, graphql):
+        graphql.side_effect = [
+            project_page([]),
+            metrics("Azure/AKS", 100),
+            project_page([{"id": "existing", "content": {"title": "azure/aks"}}]),
+            {},
+            {},
+        ]
+        with patch.object(tracker, "TARGET_REPOSITORIES", [{"owner": "Azure", "name": "AKS"}]):
+            tracker.main()
+        self.assertFalse(any(
+            call.args[0] == tracker.ADD_PROJECT_ITEM_MUTATION
+            for call in graphql.call_args_list
+        ))
+        update = graphql.call_args_list[3].args[1]
+        self.assertEqual(update["itemId"], "existing")
+
+    @patch.object(tracker, "run_graphql")
     def test_sync_reuses_items_writes_numbers_and_orders_descending(self, graphql):
         targets = [{"owner": "org", "name": name} for name in ("a", "b", "c")]
 

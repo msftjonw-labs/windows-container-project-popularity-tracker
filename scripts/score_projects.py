@@ -135,8 +135,22 @@ def run_graphql(query, variables=None):
   return result["data"]
 
 
+ARCHIVE_PROJECT_ITEM_MUTATION = """
+mutation($projectId: ID!, $itemId: ID!) {
+  archiveProjectV2Item(input: {projectId: $projectId, itemId: $itemId}) {
+    item { id isArchived }
+  }
+}
+"""
+
+
 def get_project_items():
   items = {}
+  duplicates = []
+  targets = {
+      f"{repo['owner']}/{repo['name']}".casefold()
+      for repo in TARGET_REPOSITORIES
+  }
   cursor = None
   while True:
     project = run_graphql(PROJECT_QUERY, {
@@ -156,16 +170,23 @@ def get_project_items():
       if content and "title" in content:
         title = content["title"].casefold()
         if title in items:
-          print(
-              f"Warning: Duplicate project draft title: {title}; "
-              f"reusing first item {items[title]}, ignoring item {item['id']}."
-          )
+          if title in targets and item["id"] != items[title]:
+            duplicates.append((title, item["id"]))
           continue
         items[title] = item["id"]
     page = project["items"]["pageInfo"]
     if not page["hasNextPage"]:
-      return items
+      break
     cursor = page["endCursor"]
+  # Finish pagination before archiving so mutations cannot shift the page cursors.
+  for title, item_id in duplicates:
+    result = run_graphql(ARCHIVE_PROJECT_ITEM_MUTATION, {
+        "projectId": PROJECT_ID, "itemId": item_id
+    })["archiveProjectV2Item"]["item"]
+    if result["id"] != item_id or not result["isArchived"]:
+      raise RuntimeError(f"Could not archive duplicate project item {item_id}.")
+    print(f"Archived duplicate {title}: {item_id}; keeping {items[title]}.")
+  return items
 
 
 def calculate_score(repo_data):

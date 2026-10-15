@@ -61,10 +61,7 @@ class TrackerTests(unittest.TestCase):
                     self.assertEqual(tracker.get_project_items(), {
                         "microsoft/wsl": "first", "org/other": "other",
                     })
-                output.assert_called_once_with(
-                    "Warning: Duplicate project draft title: microsoft/wsl; "
-                    "reusing first item first, ignoring item duplicate."
-                )
+                output.assert_not_called()
                 if across_pages:
                     self.assertEqual(graphql.call_args.args[1]["cursor"], "next")
 
@@ -85,21 +82,38 @@ class TrackerTests(unittest.TestCase):
         self.assertEqual(tracker.get_project_items(), {"azure/aks": "active"})
 
     @patch.object(tracker, "run_graphql")
-    def test_active_duplicates_report_both_ids(self, graphql):
+    def test_active_target_duplicates_are_archived_after_pagination(self, graphql):
         for across_pages in (False, True):
             with self.subTest(across_pages=across_pages):
                 first = {"id": "first", "content": {"title": "Azure/AKS"}}
                 second = {"id": "second", "content": {"title": "azure/aks"}}
                 graphql.side_effect = (
-                    [project_page([first], True, "next"), project_page([second])]
-                    if across_pages else [project_page([first, second])]
+                    [project_page([first], True, "next"), project_page([second]),
+                     {"archiveProjectV2Item": {"item": {"id": "second", "isArchived": True}}}]
+                    if across_pages else [project_page([first, second]),
+                     {"archiveProjectV2Item": {"item": {"id": "second", "isArchived": True}}}]
                 )
                 with patch("builtins.print") as output:
                     self.assertEqual(tracker.get_project_items(), {"azure/aks": "first"})
                 output.assert_called_once_with(
-                    "Warning: Duplicate project draft title: azure/aks; "
-                    "reusing first item first, ignoring item second."
+                    "Archived duplicate azure/aks: second; keeping first."
                 )
+                self.assertEqual(graphql.call_args.args, (
+                    tracker.ARCHIVE_PROJECT_ITEM_MUTATION,
+                    {"projectId": "project", "itemId": "second"},
+                ))
+
+    @patch.object(tracker, "run_graphql")
+    def test_archive_failure_stops_cleanup(self, graphql):
+        graphql.side_effect = [
+            project_page([
+                {"id": "first", "content": {"title": "Azure/AKS"}},
+                {"id": "second", "content": {"title": "azure/aks"}},
+            ]),
+            RuntimeError("archive denied"),
+        ]
+        with self.assertRaisesRegex(RuntimeError, "archive denied"):
+            tracker.get_project_items()
 
     @patch.object(tracker, "run_graphql")
     def test_missing_item_is_refreshed_before_creation(self, graphql):
@@ -138,6 +152,10 @@ class TrackerTests(unittest.TestCase):
                 return {"addProjectV2DraftIssue": {
                     "projectItem": {"id": variables["title"]},
                 }}
+            if query == tracker.ARCHIVE_PROJECT_ITEM_MUTATION:
+                return {"archiveProjectV2Item": {"item": {
+                    "id": variables["itemId"], "isArchived": True,
+                }}}
             return {}
 
         graphql.side_effect = respond

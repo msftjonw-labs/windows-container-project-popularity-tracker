@@ -1,0 +1,38 @@
+name: Windows Container Project Popularity Tracker
+on:
+  schedule:
+    - cron: '0 8 * * 1' # Runs every Monday at 08:00 UTC
+  workflow_dispatch: # Allows manual triggers from the Actions tab
+
+jobs:
+  evaluate-and-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Generates a temporary GitHub App installation token
+      - name: Generate GitHub App Token
+        uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      # Passes the dynamically generated GitHub App token into the script via GH_TOKEN
+      - name: Run Scoring & Sync Script
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_PROJECT_ID: ${{ vars.GH_PROJECT_ID }}
+          GH_SCORE_FIELD_ID: ${{ vars.GH_SCORE_FIELD_ID }}
+        run: python score_projects.py

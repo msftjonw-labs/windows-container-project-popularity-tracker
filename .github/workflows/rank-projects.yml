@@ -18,6 +18,7 @@ jobs:
         with:
           client-id: ${{ vars.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -35,4 +36,4 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_PROJECT_ID: ${{ vars.GH_PROJECT_ID }}
           GH_SCORE_FIELD_ID: ${{ vars.GH_SCORE_FIELD_ID }}
-        run: python score_projects.py
+        run: python scripts/score_projects.py

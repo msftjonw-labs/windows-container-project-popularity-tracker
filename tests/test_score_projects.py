@@ -1,4 +1,6 @@
 import unittest
+import json
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 
 from scripts import score_projects as tracker
@@ -32,6 +34,9 @@ class TrackerTests(unittest.TestCase):
         )
         self.settings.start()
         self.addCleanup(self.settings.stop)
+        ranking = patch.object(tracker, "update_rankings")
+        self.rankings = ranking.start()
+        self.addCleanup(ranking.stop)
 
     @patch.object(tracker, "run_graphql")
     def test_project_items_are_paginated(self, graphql):
@@ -165,13 +170,14 @@ class TrackerTests(unittest.TestCase):
         calls = graphql.call_args_list
         creates = [c.args[1] for c in calls if c.args[0] == tracker.ADD_PROJECT_ITEM_MUTATION]
         self.assertEqual([c["title"] for c in creates], ["org/b", "org/c"])
-        updates = [c.args[1] for c in calls if c.args[0] == tracker.UPDATE_FIELD_MUTATION]
-        self.assertEqual([c["itemId"] for c in updates], ["existing", "org/b", "org/c"])
-        self.assertEqual([c["value"] for c in updates], [5.0, 50.0, 10.0])
-        self.assertTrue(all(isinstance(c["value"], float) for c in updates))
+        self.assertFalse(any(c.args[0] == tracker.UPDATE_FIELD_MUTATION for c in calls))
         moves = [c.args[1] for c in calls if c.args[0] == tracker.UPDATE_POSITION_MUTATION]
         self.assertEqual([(c["itemId"], c["afterId"]) for c in moves], [
             ("org/b", None), ("org/c", "org/b"), ("existing", "org/c"),
+        ])
+        self.rankings.assert_called_once_with([
+            (50.0, "org/b", "org/b"), (10.0, "org/c", "org/c"),
+            (5.0, "org/a", "existing"),
         ])
 
     @patch.object(tracker, "run_graphql")
@@ -180,6 +186,7 @@ class TrackerTests(unittest.TestCase):
         with patch.object(tracker, "TARGET_REPOSITORIES", [{"owner": "org", "name": "a"}]):
             with self.assertRaisesRegex(RuntimeError, "org/a"):
                 tracker.main()
+        self.rankings.assert_not_called()
 
     def test_partial_configuration_is_rejected(self):
         with patch.object(tracker, "SCORE_FIELD_ID", None):
@@ -198,6 +205,187 @@ class TrackerTests(unittest.TestCase):
         self.assertIn("number: $value", tracker.UPDATE_FIELD_MUTATION)
         self.assertIn("$value: Float!", tracker.UPDATE_FIELD_MUTATION)
         self.assertNotIn("privacy:", tracker.REPO_METRICS_QUERY)
+
+
+class RankingTests(unittest.TestCase):
+    def field(self, name="Ranking"):
+        options = tracker.RANKING_OPTIONS if name == "Ranking" else tracker.TREND_OPTIONS
+        if name == "WoW Delta":
+            return {"__typename": "ProjectV2Field", "id": name, "name": name, "dataType": "NUMBER"}
+        return {
+            "__typename": "ProjectV2MultiSelectField" if name == "Ranking" else "ProjectV2SingleSelectField",
+            "id": name, "name": name,
+            "multiSelectOptions" if name == "Ranking" else "options": [
+                {"id": option["name"], **option}
+                for option in options
+            ],
+        }
+
+    def fields(self, *nodes):
+        return {"node": {"fields": {
+            "nodes": list(nodes), "pageInfo": {"hasNextPage": False},
+        }}}
+
+    @patch.object(tracker, "run_graphql")
+    def test_existing_field_is_reused(self, graphql):
+        graphql.return_value = self.fields(*(self.field(n) for n in ("Ranking", "WoW Delta", "WoW Trend")))
+        fields, legacy = tracker.get_dashboard_fields()
+        field_id, options = fields["Ranking"]
+        self.assertEqual(field_id, "Ranking")
+        self.assertEqual(options["Top 3"], "Top 3")
+        self.assertIsNone(legacy)
+        graphql.assert_called_once()
+
+    @patch.object(tracker, "run_graphql")
+    def test_missing_field_is_created_with_colors(self, graphql):
+        graphql.side_effect = [
+            self.fields(),
+            *({"createProjectV2Field": {"projectV2Field": self.field(n)}}
+              for n in ("Ranking", "WoW Delta", "WoW Trend")),
+        ]
+        tracker.get_dashboard_fields()
+        create = graphql.call_args_list[1]
+        self.assertEqual(create.args[0], tracker.CREATE_DASHBOARD_FIELD_MUTATION)
+        self.assertEqual(create.args[1]["multi"], tracker.RANKING_OPTIONS)
+
+    @patch.object(tracker, "run_graphql")
+    def test_invalid_field_is_rejected(self, graphql):
+        graphql.return_value = self.fields({"__typename": "ProjectV2Field", "name": "Ranking", "dataType": "TEXT"})
+        with self.assertRaisesRegex(ValueError, "MULTI_SELECT"):
+            tracker.get_dashboard_fields()
+        field = self.field()
+        field["multiSelectOptions"][0]["color"] = "RED"
+        graphql.return_value = self.fields(field)
+        with self.assertRaisesRegex(ValueError, "GREEN"):
+            tracker.get_dashboard_fields()
+
+    @patch.object(tracker, "run_graphql")
+    @patch.object(tracker, "configure_dashboard_view")
+    @patch.object(tracker, "get_dashboard_fields")
+    def test_top_three_priority_and_strict_threshold(self, field, view, graphql):
+        field.return_value = ({
+            "Ranking": ("ranking", {o["name"]: o["name"] for o in tracker.RANKING_OPTIONS}),
+            "WoW Delta": ("delta", {}),
+            "WoW Trend": ("trend", {o["name"]: o["name"] for o in tracker.TREND_OPTIONS}),
+        }, None)
+        graphql.return_value = {"node": {"content": {"id": "draft", "body": "Repository"}}}
+        rows = [(score, f"org/{i}", str(i)) for i, score in enumerate(
+            [30000, 20000, 15000, 10000.01, 10000, 9999]
+        )]
+        tracker.update_rankings(rows)
+        ranking_calls = [
+            call for call in graphql.call_args_list
+            if call.args[1].get("fieldId") == "ranking"
+        ]
+        self.assertEqual([c.args[1].get("options") for c in ranking_calls],
+                         [["Top 3"], ["Top 3"], ["Top 3"], ["Over 10,000"], None, None])
+        for call in ranking_calls[-2:]:
+            self.assertEqual(call.args[0], tracker.CLEAR_RANKING_MUTATION)
+        self.assertNotIn("Standard", [o["name"] for o in tracker.RANKING_OPTIONS])
+
+    @patch.object(tracker, "run_graphql")
+    def test_single_select_migration_keeps_legacy_until_publication(self, graphql):
+        legacy = {"__typename": "ProjectV2SingleSelectField", "id": "old", "name": "Ranking"}
+        graphql.side_effect = [
+            self.fields(legacy), {},
+            *({"createProjectV2Field": {"projectV2Field": self.field(n)}}
+              for n in ("Ranking", "WoW Delta", "WoW Trend")),
+        ]
+        fields, old_id = tracker.get_dashboard_fields()
+        self.assertEqual(old_id, "old")
+        self.assertEqual(fields["Ranking"][0], "Ranking")
+        self.assertEqual(graphql.call_args_list[1].args[0], tracker.RENAME_FIELD_MUTATION)
+
+    @patch.object(tracker, "run_graphql")
+    @patch.object(tracker, "configure_dashboard_view")
+    @patch.object(tracker, "get_dashboard_fields")
+    def test_delta_trend_signs_and_previous_labels_are_published(self, fields, view, graphql):
+        fields.return_value = ({
+            "Ranking": ("ranking", {o["name"]: o["name"] for o in tracker.RANKING_OPTIONS}),
+            "WoW Delta": ("delta", {}),
+            "WoW Trend": ("trend", {o["name"]: o["name"] for o in tracker.TREND_OPTIONS}),
+        }, None)
+        today = datetime.now(timezone(timedelta(hours=-8))).date()
+        previous = today - timedelta(days=today.weekday() + 7)
+        history = {previous.isoformat(): {"score": 100, "labels": ["Over 10,000"]}}
+        body = "<!-- popularity-weekly:" + json.dumps(history) + " -->"
+        graphql.return_value = {"node": {"content": {"id": "draft", "body": body}}}
+        tracker.update_rankings([(110, "org/a", "a"), (100, "org/b", "b"), (90, "org/c", "c")])
+        delta_calls = [c for c in graphql.call_args_list if c.args[1].get("fieldId") == "delta"]
+        self.assertEqual([c.args[1]["value"] for c in delta_calls], [10, 0, -10])
+        trend_calls = [c for c in graphql.call_args_list if c.args[1].get("fieldId") == "trend"]
+        self.assertEqual([c.args[1].get("optionId") for c in trend_calls], ["Increase", None, "Decrease"])
+        self.assertEqual(trend_calls[1].args[0], tracker.CLEAR_RANKING_MUTATION)
+        ranking_calls = [c for c in graphql.call_args_list if c.args[1].get("fieldId") == "ranking"]
+        self.assertTrue(all(c.args[1]["options"] == ["Top 3", "Previous Week's Over 10,000"] for c in ranking_calls))
+        saved = [c for c in graphql.call_args_list if c.args[0] == tracker.UPDATE_SNAPSHOT_MUTATION]
+        self.assertEqual(len(saved), 3)
+
+    @patch.object(tracker, "run_graphql")
+    @patch.object(tracker, "configure_dashboard_view")
+    @patch.object(tracker, "get_dashboard_fields")
+    def test_write_failure_does_not_commit_snapshot_or_remove_legacy(self, fields, view, graphql):
+        fields.return_value = ({
+            "Ranking": ("ranking", {}),
+            "WoW Delta": ("delta", {}),
+            "WoW Trend": ("trend", {}),
+        }, "legacy")
+        graphql.side_effect = [
+            {"node": {"content": {"id": "draft", "body": ""}}},
+            RuntimeError("write denied"),
+        ]
+        with self.assertRaisesRegex(RuntimeError, "write denied"):
+            tracker.update_rankings([(100, "org/a", "a")])
+        view.assert_not_called()
+        self.assertFalse(any(c.args[0] == tracker.UPDATE_SNAPSHOT_MUTATION for c in graphql.call_args_list))
+
+
+class WeeklySnapshotTests(unittest.TestCase):
+    def snapshot(self, history):
+        return "Repository notes\n\n<!-- popularity-weekly:" + json.dumps(history) + " -->"
+
+    def test_first_run_leaves_delta_blank(self):
+        delta, labels, body = tracker.weekly_snapshot(
+            "Repository notes", 200, ["Top 3"], date(2026, 10, 19)
+        )
+        self.assertIsNone(delta)
+        self.assertEqual(labels, ["Top 3"])
+        self.assertTrue(body.startswith("Repository notes"))
+
+    def test_week_rollover_and_same_week_rerun(self):
+        _, _, body = tracker.weekly_snapshot("", 100, ["Top 3"], date(2026, 10, 12))
+        delta, labels, body = tracker.weekly_snapshot(body, 120, ["Over 10,000"], date(2026, 10, 19))
+        self.assertEqual(delta, 20)
+        self.assertEqual(labels, ["Over 10,000", "Previous Week's Top 3"])
+        delta, labels, body = tracker.weekly_snapshot(body, 130, ["Top 3"], date(2026, 10, 23))
+        self.assertEqual(delta, 30)
+        self.assertEqual(labels, ["Top 3", "Previous Week's Top 3"])
+        self.assertEqual(body.count("<!-- popularity-weekly:"), 1)
+
+    def test_negative_zero_and_missing_week(self):
+        body = self.snapshot({"2026-10-12": {"score": 100, "labels": ["Over 10,000"]}})
+        for score, expected in [(90, -10), (100, 0)]:
+            delta, labels, _ = tracker.weekly_snapshot(body, score, [], date(2026, 10, 19))
+            self.assertEqual(delta, expected)
+            self.assertEqual(labels, ["Previous Week's Over 10,000"])
+        delta, labels, _ = tracker.weekly_snapshot(body, 200, [], date(2026, 10, 26))
+        self.assertIsNone(delta)
+        self.assertEqual(labels, [])
+
+    def test_year_boundary(self):
+        body = self.snapshot({"2026-12-28": {"score": 100, "labels": []}})
+        delta, _, _ = tracker.weekly_snapshot(body, 101.23, [], date(2027, 1, 4))
+        self.assertEqual(delta, 1.23)
+
+    def test_corrupt_snapshot_fails_explicitly(self):
+        for body in [
+            "<!-- popularity-weekly:bad -->",
+            "<!-- popularity-weekly:unfinished",
+            self.snapshot({"2026-10-13": {"score": 100, "labels": []}}),
+            self.snapshot({"2026-10-12": {"score": "100", "labels": []}}),
+        ]:
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                tracker.weekly_snapshot(body, 10, [], date(2026, 10, 19))
 
 
 if __name__ == "__main__":

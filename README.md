@@ -38,3 +38,64 @@ An explicit view sort overrides manual item positions. API failures fail the
 workflow instead of reporting a successful sync.
 
 Run the regression tests with `python -m unittest discover -s tests -v`.
+
+## Weekly dashboard
+
+The workflow runs every Monday at **09:00 fixed PST (UTC-8)**, or **17:00 UTC**
+year-round. This is 10:00 Pacific daylight time during daylight saving time.
+GitHub may delay scheduled workflows; the cron is not an exact execution guarantee.
+
+The dashboard has four custom fields:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| Popularity Score | Number | Latest computed score |
+| WoW Delta | Number | This week's score minus the previous calendar week's score |
+| WoW Trend | Single-select | Increase (green) for positive delta; Decrease (red) for negative delta |
+| Ranking | Multi-select | Current and previous-week ranking labels |
+
+Weeks start Monday at 00:00 fixed PST. Manual reruns in the same week update that
+week's score but retain the same previous-week baseline. The most recent successful
+per-repository snapshot in a week is used the following week. If the immediately
+previous week has no snapshot, Delta and Trend are blank; an older score is not
+substituted. Zero delta is displayed as 0, with no Trend label.
+
+Snapshots are stored in a `popularity-weekly` HTML comment in each repository's
+draft body, not in additional project fields or runner-local files. Existing body
+text is preserved. Do not edit these comments: invalid snapshot data stops the sync
+instead of resetting history. The first run initializes history; undated scores
+already in the project cannot be treated as last week's scores.
+
+Each successful project sync creates or reuses a **Ranking** multi-select field:
+
+| Label | Color | Rule |
+| --- | --- | --- |
+| Top 3 | Green | First three repositories by descending score |
+| Over 10,000 | Yellow | Score strictly greater than 10,000, outside the top three |
+| Previous Week's Top 3 | Green | Top-three category in the previous calendar week |
+| Previous Week's Over 10,000 | Yellow | Over-10,000 category in the previous calendar week |
+| No label | Default | All remaining repositories |
+
+Top-three status takes priority within each week, including when those scores
+exceed 10,000. Ties are broken by repository name. Current and previous-week labels
+can coexist, such as Top 3 plus Previous Week's Over 10,000. Labels are replaced on
+every sync, not accumulated indefinitely. A repository outside this week's
+categories can still have a previous-week label.
+
+Metrics are collected for all targets before publishing dashboard values. Invalid
+snapshot data is checked before any row is updated. GitHub has no multi-row
+transaction: a failed API write can leave a partially updated dashboard; rerun to
+complete it. Each row's snapshot is saved after its field updates, so retries
+preserve the prior-week baseline.
+
+The old single-select Ranking field is renamed Ranking (legacy) during migration.
+It is removed only after new values are written and all views show the replacement.
+A failed migration can be resumed by rerunning. This replaces the Ranking field ID;
+Popularity Score and its configured ID are unchanged. Field options must match the
+documented names and colors. The sync makes all four dashboard fields visible in
+existing project views while preserving other visible columns.
+
+In the project view, open the field menu, enable **Ranking**, and save the view.
+GitHub Projects supports only one green label shade, not light/dark greens,
+conditional row backgrounds, or bold repository titles. Top 3 uses green,
+Over 10,000 uses yellow, and the remaining repositories have no ranking label.

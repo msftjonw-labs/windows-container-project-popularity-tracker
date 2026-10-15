@@ -1,7 +1,7 @@
 name: Windows Container Project Popularity Tracker
 on:
   schedule:
-    - cron: '0 8 * * 1' # Runs every Monday at 08:00 UTC
+    - cron: '0 17 * * 1' # Monday 09:00 fixed PST (UTC-8), year-round
   workflow_dispatch: # Allows manual triggers from the Actions tab
 
 concurrency:

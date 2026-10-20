@@ -147,7 +147,7 @@ query($projectId: ID!) {
           }
           ... on ProjectV2IterationField { name }
           ... on ProjectV2MultiSelectField {
-            id name multiSelectOptions { id name color }
+            id name multiSelectOptions { id name color description }
           }
         }
         pageInfo { hasNextPage }
@@ -213,6 +213,15 @@ def get_dashboard_fields():
       raise ValueError(f"{name} must have type {kind}.")
     values = field.get("multiSelectOptions", field.get("options", []))
     option_map = {option["name"]: option for option in values}
+    missing = [option for option in options if option["name"] not in option_map]
+    if kind == "MULTI_SELECT" and missing:
+      for option in options:
+        if option["name"] in option_map and option_map[option["name"]]["color"] != option["color"]:
+          raise ValueError(f"{name} needs a {option['color']} option named {option['name']}.")
+      field = run_graphql(UPDATE_RANKING_OPTIONS_MUTATION, {
+          "fieldId": field["id"], "options": values + missing,
+      })["updateProjectV2Field"]["projectV2Field"]
+      option_map = {option["name"]: option for option in field["multiSelectOptions"]}
     for option in options:
       if option["name"] not in option_map or option_map[option["name"]]["color"] != option["color"]:
         raise ValueError(f"{name} needs a {option['color']} option named {option['name']}.")
@@ -242,6 +251,18 @@ RENAME_FIELD_MUTATION = """
 mutation($fieldId: ID!, $name: String!) {
   updateProjectV2Field(input: {fieldId: $fieldId, name: $name}) {
     clientMutationId
+  }
+}
+"""
+
+UPDATE_RANKING_OPTIONS_MUTATION = """
+mutation($fieldId: ID!, $options: [ProjectV2MultiSelectFieldOptionInput!]!) {
+  updateProjectV2Field(input: {fieldId: $fieldId, multiSelectOptions: $options}) {
+    projectV2Field {
+      ... on ProjectV2MultiSelectField {
+        id multiSelectOptions { id name color description }
+      }
+    }
   }
 }
 """

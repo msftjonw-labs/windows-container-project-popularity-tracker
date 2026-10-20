@@ -91,9 +91,11 @@ preserve the prior-week baseline.
 The old single-select Ranking field is renamed Ranking (legacy) during migration.
 It is removed only after new values are written and all views show the replacement.
 A failed migration can be resumed by rerunning. This replaces the Ranking field ID;
-Popularity Score and its configured ID are unchanged. Field options must match the
-documented names and colors. The sync makes all four dashboard fields visible in
-existing project views while preserving other visible columns.
+Popularity Score and its configured ID are unchanged. Missing Ranking options are
+added in place, preserving existing option IDs, descriptions, and custom options.
+Existing required options must match the documented colors. The sync makes all
+four dashboard fields visible in existing project views while preserving other
+visible columns.
 
 In the project view, open the field menu, enable **Ranking**, and save the view.
 GitHub Projects supports only one green label shade, not light/dark greens,

@@ -218,13 +218,19 @@ def get_dashboard_fields():
       for option in options:
         if option["name"] in option_map and option_map[option["name"]]["color"] != option["color"]:
           raise ValueError(f"{name} needs a {option['color']} option named {option['name']}.")
-      field = run_graphql(UPDATE_RANKING_OPTIONS_MUTATION, {
+      run_graphql(UPDATE_RANKING_OPTIONS_MUTATION, {
           "fieldId": field["id"], "options": values + missing,
-      })["updateProjectV2Field"]["projectV2Field"]
+      })
+      refreshed = run_graphql(RANKING_FIELD_QUERY, {"projectId": PROJECT_ID})["node"]["fields"]
+      field = next(node for node in refreshed["nodes"] if node.get("id") == field["id"])
       option_map = {option["name"]: option for option in field["multiSelectOptions"]}
     for option in options:
       if option["name"] not in option_map or option_map[option["name"]]["color"] != option["color"]:
-        raise ValueError(f"{name} needs a {option['color']} option named {option['name']}.")
+        received = [(value["name"], value["color"]) for value in option_map.values()]
+        raise ValueError(
+            f"{name} needs a {option['color']} option named {option['name']}. "
+            f"Received options: {received!r}"
+        )
     result[name] = (field["id"], {name: option["id"] for name, option in option_map.items()})
   return result, legacy["id"] if legacy else None
 

@@ -93,6 +93,9 @@ It is removed only after new values are written and all views show the replaceme
 A failed migration can be resumed by rerunning. This replaces the Ranking field ID;
 Popularity Score and its configured ID are unchanged. Missing Ranking options are
 added in place, preserving existing option IDs, descriptions, and custom options.
+After updating options, the script reads the field again before validating names,
+colors, and IDs rather than relying on the mutation response. Persistent name or
+color mismatches stop the sync and report the returned option names and colors.
 Existing required options must match the documented colors. The sync makes all
 four dashboard fields visible in existing project views while preserving other
 visible columns.

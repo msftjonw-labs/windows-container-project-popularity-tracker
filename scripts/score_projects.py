@@ -214,12 +214,14 @@ def get_dashboard_fields():
     values = field.get("multiSelectOptions", field.get("options", []))
     option_map = {option["name"]: option for option in values}
     missing = [option for option in options if option["name"] not in option_map]
-    if kind == "MULTI_SELECT" and missing:
-      for option in options:
-        if option["name"] in option_map and option_map[option["name"]]["color"] != option["color"]:
-          raise ValueError(f"{name} needs a {option['color']} option named {option['name']}.")
+    colors = {option["name"]: option["color"] for option in options}
+    corrected = [
+        {**option, "color": colors.get(option["name"], option["color"])}
+        for option in values
+    ]
+    if kind == "MULTI_SELECT" and (missing or corrected != values):
       run_graphql(UPDATE_RANKING_OPTIONS_MUTATION, {
-          "fieldId": field["id"], "options": values + missing,
+          "fieldId": field["id"], "options": corrected + missing,
       })
       refreshed = run_graphql(RANKING_FIELD_QUERY, {"projectId": PROJECT_ID})["node"]["fields"]
       field = next(node for node in refreshed["nodes"] if node.get("id") == field["id"])

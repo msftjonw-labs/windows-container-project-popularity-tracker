@@ -273,6 +273,46 @@ class RankingTests(unittest.TestCase):
                 self.assertEqual(graphql.call_count, 4)
 
     @patch.object(tracker, "run_graphql")
+    def test_ranking_option_colors_are_repaired_in_place(self, graphql):
+        for count in (3, 4):
+            with self.subTest(existing_required_options=count):
+                ranking = self.field()
+                ranking["multiSelectOptions"] = ranking["multiSelectOptions"][:count]
+                for index, option in enumerate(ranking["multiSelectOptions"]):
+                    if count < 4 or index >= 2:
+                        option["color"] = "ORANGE"
+                    option["description"] = "Keep existing description"
+                custom = {"id": "custom", "name": "Custom", "color": "BLUE", "description": "Keep me"}
+                ranking["multiSelectOptions"].append(custom)
+                expected = [
+                    {**option, "color": tracker.RANKING_OPTIONS[index]["color"]}
+                    for index, option in enumerate(ranking["multiSelectOptions"][:-1])
+                ] + [custom] + tracker.RANKING_OPTIONS[count:]
+                updated = {**ranking, "multiSelectOptions": [
+                    {**option, "id": option.get("id", "new-" + option["name"])}
+                    for option in expected
+                ]}
+                graphql.reset_mock()
+                graphql.side_effect = [
+                    self.fields(ranking, self.field("WoW Delta"), self.field("WoW Trend")),
+                    {"updateProjectV2Field": {"projectV2Field": ranking}},
+                    self.fields(updated),
+                    self.fields(updated, self.field("WoW Delta"), self.field("WoW Trend")),
+                ]
+                fields, legacy = tracker.get_dashboard_fields()
+                self.assertIsNone(legacy)
+                self.assertEqual(graphql.call_args_list[1].args, (
+                    tracker.UPDATE_RANKING_OPTIONS_MUTATION,
+                    {"fieldId": "Ranking", "options": expected},
+                ))
+                self.assertEqual(graphql.call_args_list[2].args[0], tracker.RANKING_FIELD_QUERY)
+                self.assertEqual(fields["Ranking"], (
+                    "Ranking", {option["name"]: option["id"] for option in updated["multiSelectOptions"]},
+                ))
+                self.assertEqual(tracker.get_dashboard_fields()[0], fields)
+                self.assertEqual(graphql.call_count, 4)
+
+    @patch.object(tracker, "run_graphql")
     def test_ranking_option_refresh_still_validates_names_and_colors(self, graphql):
         for mismatch in ("missing", "wrong color", "different name"):
             with self.subTest(mismatch=mismatch):
@@ -314,16 +354,22 @@ class RankingTests(unittest.TestCase):
 
     @patch.object(tracker, "run_graphql")
     def test_ranking_option_upgrade_failure_stops_sync(self, graphql):
-        ranking = self.field()
-        ranking["multiSelectOptions"] = ranking["multiSelectOptions"][:2]
-        graphql.side_effect = [
-            self.fields(ranking), RuntimeError("update denied"),
-        ]
-        with patch.object(tracker, "configure_dashboard_view") as view:
-            with self.assertRaisesRegex(RuntimeError, "update denied"):
-                tracker.update_rankings([(100, "org/a", "a")])
-        view.assert_not_called()
-        self.assertEqual(graphql.call_count, 2)
+        for mismatch in ("missing", "wrong color"):
+            with self.subTest(mismatch=mismatch):
+                ranking = self.field()
+                if mismatch == "missing":
+                    ranking["multiSelectOptions"] = ranking["multiSelectOptions"][:2]
+                else:
+                    ranking["multiSelectOptions"][2]["color"] = "ORANGE"
+                graphql.reset_mock()
+                graphql.side_effect = [
+                    self.fields(ranking), RuntimeError("update denied"),
+                ]
+                with patch.object(tracker, "configure_dashboard_view") as view:
+                    with self.assertRaisesRegex(RuntimeError, "update denied"):
+                        tracker.update_rankings([(100, "org/a", "a")])
+                view.assert_not_called()
+                self.assertEqual(graphql.call_count, 2)
 
     @patch.object(tracker, "run_graphql")
     def test_missing_field_is_created_with_colors(self, graphql):
@@ -342,16 +388,6 @@ class RankingTests(unittest.TestCase):
         graphql.return_value = self.fields({"__typename": "ProjectV2Field", "name": "Ranking", "dataType": "TEXT"})
         with self.assertRaisesRegex(ValueError, "MULTI_SELECT"):
             tracker.get_dashboard_fields()
-        for count in (2, 4):
-            with self.subTest(existing_required_options=count):
-                field = self.field()
-                field["multiSelectOptions"] = field["multiSelectOptions"][:count]
-                field["multiSelectOptions"][0]["color"] = "RED"
-                graphql.reset_mock()
-                graphql.return_value = self.fields(field)
-                with self.assertRaisesRegex(ValueError, "GREEN"):
-                    tracker.get_dashboard_fields()
-                graphql.assert_called_once()
 
     @patch.object(tracker, "run_graphql")
     @patch.object(tracker, "configure_dashboard_view")

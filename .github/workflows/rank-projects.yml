@@ -52,7 +52,7 @@ jobs:
           SMTP_PORT: ${{ vars.SMTP_PORT }}
           SMTP_SECURITY: ${{ vars.SMTP_SECURITY || 'starttls' }}
           SMTP_FROM: ${{ vars.SMTP_FROM }}
-          SMTP_TO: ${{ secrets.SMTP_TO }}
+          SMTP_TO: ${{ vars.SMTP_TO }}
           SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
         run: python scripts/send_success_email.py

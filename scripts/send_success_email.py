@@ -9,6 +9,12 @@ def main():
     if not host:
         print("SMTP_HOST is not configured; skipping success email.")
         return
+    if "@" in host:
+        raise ValueError(
+            "SMTP_HOST must be an SMTP server hostname, not an email address. "
+            "Set the SMTP_HOST repository variable to your provider's SMTP server "
+            "(for Gmail, smtp.gmail.com). Use SMTP_FROM and SMTP_USERNAME for email addresses."
+        )
 
     sender = os.getenv("SMTP_FROM", "").strip()
     recipients = [

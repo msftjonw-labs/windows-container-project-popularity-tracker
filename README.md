@@ -71,10 +71,13 @@ TLS and certificate verification are always required; plaintext SMTP is not
 supported. These same settings can be supplied as environment variables when
 running `python scripts/send_success_email.py` locally.
 
-The email identifies the repository and links to the workflow run. SMTP errors
-(including rejected recipients) fail the notification step and the workflow;
-they do not undo the completed project sync. SMTP acceptance does not guarantee
-inbox delivery. No failure email is sent for a failed or cancelled sync.
+The email identifies the repository, links to the workflow run, and attaches
+the weekly ranking PDF. Reports are saved in the repository-root
+`report-history/` directory using the week's Monday date as the filename
+(for example, `2026-10-19.pdf`). SMTP errors (including rejected recipients)
+or a missing report fail the notification step and the workflow; they do not
+undo the completed project sync. SMTP acceptance does not guarantee inbox
+delivery. No failure email is sent for a failed or cancelled sync.
 
 ## Weekly dashboard
 

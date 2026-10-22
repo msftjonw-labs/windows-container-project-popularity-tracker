@@ -5,6 +5,11 @@ import re
 from datetime import date, datetime, timedelta, timezone
 import requests
 
+if __package__:
+  from .weekly_report import generate_weekly_report
+else:
+  from weekly_report import generate_weekly_report
+
 # Environment Variables
 GITHUB_TOKEN = os.getenv("GH_TOKEN")
 PROJECT_ID = os.getenv("GH_PROJECT_ID")  # The Node ID of your GitHub Project v2
@@ -369,6 +374,7 @@ def update_rankings(scored_items):
     run_graphql(UPDATE_SNAPSHOT_MUTATION, {"draftId": draft_id, "body": body})
     print(f"-> {title}: delta={delta}, ranking={labels}")
   configure_dashboard_view(fields, legacy_id)
+  return [(title, score, labels) for score, title, _, _, _, _, labels in updates]
 
 
 def configure_dashboard_view(fields, legacy_id):
@@ -527,6 +533,7 @@ def main():
   print("Starting Kubernetes OSS popularity evaluation using GitHub App Token...")
   items = get_project_items() if PROJECT_ID else {}
   scored_items = []
+  report_items = []
   failures = []
 
   for repo_info in TARGET_REPOSITORIES:
@@ -540,6 +547,7 @@ def main():
       
       score = calculate_score(repo)
       print(f"-> Calculated Popularity Score: {score}")
+      report_items.append((score, repo["nameWithOwner"]))
 
       # Sync to Project v2 if Project ID and Field ID are configured
       if PROJECT_ID and SCORE_FIELD_ID:
@@ -571,14 +579,22 @@ def main():
   if failures:
     raise RuntimeError(f"Evaluation failed for: {', '.join(failures)}")
   scored_items.sort(key=lambda item: (-item[0], item[1]))
+  report_items.sort(key=lambda item: (-item[0], item[1]))
+  report_rows = []
   if scored_items:
-    update_rankings(scored_items)
+    report_rows = update_rankings(scored_items)
   after_id = None
   for score, title, item_id in scored_items:
     run_graphql(UPDATE_POSITION_MUTATION, {
         "projectId": PROJECT_ID, "itemId": item_id, "afterId": after_id
     })
     after_id = item_id
+  if not scored_items:
+    for rank, (score, title) in enumerate(report_items, start=1):
+      labels = ["Top 3"] if rank <= 3 else ["Over 10,000"] if score > 10000 else []
+      report_rows.append((title, score, labels))
+  if report_items:
+    generate_weekly_report(report_rows)
   print("\nEvaluation and sync complete!")
 
 

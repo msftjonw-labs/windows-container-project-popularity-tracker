@@ -3,6 +3,11 @@ import smtplib
 import ssl
 from email.message import EmailMessage
 
+if __package__:
+    from .weekly_report import weekly_report_path
+else:
+    from weekly_report import weekly_report_path
+
 
 def main():
     host = os.getenv("SMTP_HOST", "").strip()
@@ -48,6 +53,15 @@ def main():
     message.set_content(
         f"The scoring and project sync completed successfully for {repository}.\n\n"
         f"Workflow run: {run_url}\n"
+    )
+    report_path = weekly_report_path()
+    if not report_path.is_file():
+        raise FileNotFoundError(f"Weekly ranking PDF not found: {report_path}")
+    message.add_attachment(
+        report_path.read_bytes(),
+        maintype="application",
+        subtype="pdf",
+        filename=report_path.name,
     )
 
     context = ssl.create_default_context()

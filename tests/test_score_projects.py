@@ -37,6 +37,9 @@ class TrackerTests(unittest.TestCase):
         ranking = patch.object(tracker, "update_rankings")
         self.rankings = ranking.start()
         self.addCleanup(ranking.stop)
+        report = patch.object(tracker, "generate_weekly_report")
+        self.report = report.start()
+        self.addCleanup(report.stop)
 
     @patch.object(tracker, "run_graphql")
     def test_project_items_are_paginated(self, graphql):
@@ -187,6 +190,7 @@ class TrackerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "org/a"):
                 tracker.main()
         self.rankings.assert_not_called()
+        self.report.assert_not_called()
 
     def test_partial_configuration_is_rejected(self):
         with patch.object(tracker, "SCORE_FIELD_ID", None):

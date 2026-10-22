@@ -1,6 +1,8 @@
 import os
 import smtplib
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from scripts import send_success_email as notifier
@@ -30,6 +32,13 @@ class SuccessEmailTests(unittest.TestCase):
         self.addCleanup(ssl_patch.stop)
         self.starttls.return_value.__enter__.return_value = self.smtp
         self.implicit_tls.return_value.__enter__.return_value = self.smtp
+        self.report_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.report_dir.cleanup)
+        self.report_path = Path(self.report_dir.name) / "weekly-report.pdf"
+        self.report_path.write_bytes(b"%PDF-1.4 test")
+        report_patch = patch.object(notifier, "weekly_report_path", return_value=self.report_path)
+        report_patch.start()
+        self.addCleanup(report_patch.stop)
 
     def test_starttls_authentication_and_message(self):
         notifier.main()
@@ -46,8 +55,14 @@ class SuccessEmailTests(unittest.TestCase):
         self.assertEqual(message["Subject"], "Popularity Tracker: sync succeeded")
         self.assertEqual(message["From"], "tracker@example.com")
         self.assertEqual(message["To"], "first@example.com, second@example.com")
-        self.assertIn("https://github.com/owner/tracker/actions/runs/123",
-                      message.get_content())
+        self.assertIn(
+            "https://github.com/owner/tracker/actions/runs/123",
+            message.get_body(preferencelist=("plain",)).get_content(),
+        )
+        attachment = list(message.iter_attachments())[0]
+        self.assertEqual(attachment.get_filename(), self.report_path.name)
+        self.assertEqual(attachment.get_content_type(), "application/pdf")
+        self.assertEqual(attachment.get_payload(decode=True), b"%PDF-1.4 test")
         self.assertEqual(self.smtp.send_message.call_args.kwargs, {
             "from_addr": "tracker@example.com",
             "to_addrs": ["first@example.com", "second@example.com"],
@@ -71,6 +86,15 @@ class SuccessEmailTests(unittest.TestCase):
             notifier.main()
         self.starttls.assert_not_called()
         self.implicit_tls.assert_not_called()
+
+    def test_missing_report_prevents_delivery(self):
+        missing_report = Path(self.report_dir.name) / "missing.pdf"
+        with patch.object(notifier, "weekly_report_path", return_value=missing_report):
+            with self.assertRaisesRegex(FileNotFoundError, "Weekly ranking PDF not found"):
+                notifier.main()
+        self.starttls.assert_not_called()
+        self.implicit_tls.assert_not_called()
+        self.smtp.send_message.assert_not_called()
 
     def test_authentication_is_optional(self):
         with patch.dict(os.environ, {"SMTP_USERNAME": "", "SMTP_PASSWORD": ""}):

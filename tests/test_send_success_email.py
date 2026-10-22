@@ -78,6 +78,22 @@ class SuccessEmailTests(unittest.TestCase):
         self.smtp.login.assert_not_called()
         self.smtp.send_message.assert_called_once()
 
+    def test_email_address_as_host_fails_before_connecting(self):
+        for security in ("starttls", "ssl"):
+            with self.subTest(security=security), patch.dict(os.environ, {
+                "SMTP_HOST": " tracker@gmail.com ",
+                "SMTP_SECURITY": security,
+                "SMTP_PORT": "",
+            }):
+                with self.assertRaisesRegex(
+                    ValueError, r"SMTP_HOST.*hostname, not an email address.*smtp\.gmail\.com"
+                ):
+                    notifier.main()
+        self.starttls.assert_not_called()
+        self.implicit_tls.assert_not_called()
+        self.smtp.login.assert_not_called()
+        self.smtp.send_message.assert_not_called()
+
     def test_invalid_configuration_fails_before_connecting(self):
         for settings in (
             {"SMTP_FROM": ""},

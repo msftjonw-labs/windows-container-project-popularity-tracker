@@ -50,13 +50,23 @@ steps succeed. Configure these GitHub Actions repository variables and secrets:
 | `SMTP_PORT` | Variable | Optional port; defaults to 587 for STARTTLS or 465 for SSL |
 | `SMTP_SECURITY` | Variable | `starttls` (default) or `ssl` (implicit TLS) |
 | `SMTP_FROM` | Variable | Sender email address |
-| `SMTP_TO` | Secret | Comma-separated recipient email addresses |
+| `SMTP_TO` | Variable | Comma-separated recipient email addresses |
 | `SMTP_USERNAME` | Variable | SMTP login username, if authentication is required |
 | `SMTP_PASSWORD` | Secret | SMTP login password or provider app password |
 
 Once `SMTP_HOST` is set, sender and recipients are required. Set both the
 `SMTP_USERNAME` variable and `SMTP_PASSWORD` secret, or neither for a server that
 permits unauthenticated relay over TLS.
+
+`SMTP_HOST` must be the provider's SMTP server hostname, **not** your email
+address. For Gmail, set the repository variable `SMTP_HOST` to `smtp.gmail.com`,
+use `SMTP_SECURITY=starttls`, and leave `SMTP_PORT` unset (587). Set `SMTP_FROM`
+and `SMTP_USERNAME` to your Gmail address and `SMTP_PASSWORD` to a Google app
+password. An email address in `SMTP_HOST` causes DNS resolution to fail with
+`socket.gaierror: [Errno -2] Name or service not known`; correct the repository
+variable under **Settings → Secrets and variables → Actions → Variables** and
+rerun the workflow. Changing the code alone does not update repository variables.
+
 TLS and certificate verification are always required; plaintext SMTP is not
 supported. These same settings can be supplied as environment variables when
 running `python scripts/send_success_email.py` locally.

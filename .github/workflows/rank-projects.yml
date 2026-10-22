@@ -44,3 +44,15 @@ jobs:
           GH_PROJECT_ID: ${{ vars.GH_PROJECT_ID }}
           GH_SCORE_FIELD_ID: ${{ vars.GH_SCORE_FIELD_ID }}
         run: python scripts/score_projects.py
+
+      - name: Send Success Email
+        if: ${{ success() }}
+        env:
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_SECURITY: ${{ vars.SMTP_SECURITY || 'starttls' }}
+          SMTP_FROM: ${{ vars.SMTP_FROM }}
+          SMTP_TO: ${{ secrets.SMTP_TO }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: python scripts/send_success_email.py

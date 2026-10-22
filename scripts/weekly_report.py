@@ -12,7 +12,10 @@ def week_start(today=None):
 
 
 def weekly_report_path(today=None):
-    return REPORT_DIRECTORY / f"{week_start(today).isoformat()}.pdf"
+    today = today or datetime.now(PACIFIC_STANDARD_TIME).date()
+    return REPORT_DIRECTORY / (
+        f"windows-container-project-popularity-tracker-{today.isoformat()}.pdf"
+    )
 
 
 def _pdf_text(value):

@@ -11,6 +11,8 @@ concurrency:
 jobs:
   evaluate-and-sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -44,6 +46,18 @@ jobs:
           GH_PROJECT_ID: ${{ vars.GH_PROJECT_ID }}
           GH_SCORE_FIELD_ID: ${{ vars.GH_SCORE_FIELD_ID }}
         run: python scripts/score_projects.py
+
+      - name: Save PDF Report History
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- report-history/*.pdf
+          if git diff --cached --quiet; then
+            echo "No report changes to save."
+            exit 0
+          fi
+          git commit -m "Save generated popularity report"
+          git push
 
       - name: Send Success Email
         if: ${{ success() }}

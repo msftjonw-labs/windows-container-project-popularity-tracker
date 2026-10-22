@@ -73,8 +73,12 @@ running `python scripts/send_success_email.py` locally.
 
 The email identifies the repository, links to the workflow run, and attaches
 the weekly ranking PDF. Reports are saved in the repository-root
-`report-history/` directory using the week's Monday date as the filename
-(for example, `2026-10-19.pdf`). SMTP errors (including rejected recipients)
+`report-history/` directory and committed back to the workflow's branch before
+email is sent. Filenames use the generation date in fixed PST (UTC-8), for example
+`windows-container-project-popularity-tracker-2026-10-22.pdf`. Reruns on the same
+date replace that day's report; reports from earlier dates are retained. The
+workflow requires Contents write permission and branch rules that allow its
+GitHub Actions token to push report commits. SMTP errors (including rejected recipients)
 or a missing report fail the notification step and the workflow; they do not
 undo the completed project sync. SMTP acceptance does not guarantee inbox
 delivery. No failure email is sent for a failed or cancelled sync.

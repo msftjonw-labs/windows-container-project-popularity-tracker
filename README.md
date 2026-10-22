@@ -51,11 +51,12 @@ steps succeed. Configure these GitHub Actions repository variables and secrets:
 | `SMTP_SECURITY` | Variable | `starttls` (default) or `ssl` (implicit TLS) |
 | `SMTP_FROM` | Variable | Sender email address |
 | `SMTP_TO` | Secret | Comma-separated recipient email addresses |
-| `SMTP_USERNAME` | Secret | SMTP login username, if authentication is required |
+| `SMTP_USERNAME` | Variable | SMTP login username, if authentication is required |
 | `SMTP_PASSWORD` | Secret | SMTP login password or provider app password |
 
-Once `SMTP_HOST` is set, sender and recipients are required. Set both login
-secrets or neither for a server that permits unauthenticated relay over TLS.
+Once `SMTP_HOST` is set, sender and recipients are required. Set both the
+`SMTP_USERNAME` variable and `SMTP_PASSWORD` secret, or neither for a server that
+permits unauthenticated relay over TLS.
 TLS and certificate verification are always required; plaintext SMTP is not
 supported. These same settings can be supplied as environment variables when
 running `python scripts/send_success_email.py` locally.

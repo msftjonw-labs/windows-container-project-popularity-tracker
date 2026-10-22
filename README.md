@@ -39,6 +39,33 @@ workflow instead of reporting a successful sync.
 
 Run the regression tests with `python -m unittest discover -s tests -v`.
 
+## Success email
+
+The final workflow step sends an email only after all scoring and project sync
+steps succeed. Configure these GitHub Actions repository variables and secrets:
+
+| Setting | Location | Meaning |
+| --- | --- | --- |
+| `SMTP_HOST` | Variable | SMTP server hostname; leave unset to skip email |
+| `SMTP_PORT` | Variable | Optional port; defaults to 587 for STARTTLS or 465 for SSL |
+| `SMTP_SECURITY` | Variable | `starttls` (default) or `ssl` (implicit TLS) |
+| `SMTP_FROM` | Variable | Sender email address |
+| `SMTP_TO` | Secret | Comma-separated recipient email addresses |
+| `SMTP_USERNAME` | Variable | SMTP login username, if authentication is required |
+| `SMTP_PASSWORD` | Secret | SMTP login password or provider app password |
+
+Once `SMTP_HOST` is set, sender and recipients are required. Set both the
+`SMTP_USERNAME` variable and `SMTP_PASSWORD` secret, or neither for a server that
+permits unauthenticated relay over TLS.
+TLS and certificate verification are always required; plaintext SMTP is not
+supported. These same settings can be supplied as environment variables when
+running `python scripts/send_success_email.py` locally.
+
+The email identifies the repository and links to the workflow run. SMTP errors
+(including rejected recipients) fail the notification step and the workflow;
+they do not undo the completed project sync. SMTP acceptance does not guarantee
+inbox delivery. No failure email is sent for a failed or cancelled sync.
+
 ## Weekly dashboard
 
 The workflow runs every Monday at **09:00 fixed PST (UTC-8)**, or **17:00 UTC**

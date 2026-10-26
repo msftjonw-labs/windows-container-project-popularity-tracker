@@ -1,0 +1,109 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 792 612] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 3212 >>
+stream
+BT /F1 16 Tf 45 565 Td (Weekly Project Popularity Ranking) Tj ET
+BT /F1 10 Tf 45 545 Td (Week of 2026-10-26) Tj ET
+BT /F1 9 Tf 45 520 Td (Rank) Tj ET
+BT /F1 9 Tf 85 520 Td (Repository) Tj ET
+BT /F1 9 Tf 445 520 Td (Score) Tj ET
+BT /F1 9 Tf 510 520 Td (Labels) Tj ET
+BT /F1 9 Tf 45 500 Td (1) Tj ET
+BT /F1 9 Tf 445 500 Td (71619.20) Tj ET
+BT /F1 9 Tf 85 500 Td (kubernetes/kubernetes) Tj ET
+BT /F1 9 Tf 510 500 Td (Top 3, Previous Week's Top 3) Tj ET
+BT /F1 9 Tf 45 480 Td (2) Tj ET
+BT /F1 9 Tf 445 480 Td (32151.64) Tj ET
+BT /F1 9 Tf 85 480 Td (moby/moby) Tj ET
+BT /F1 9 Tf 510 480 Td (Top 3, Previous Week's Top 3) Tj ET
+BT /F1 9 Tf 45 460 Td (3) Tj ET
+BT /F1 9 Tf 445 460 Td (19217.84) Tj ET
+BT /F1 9 Tf 85 460 Td (prometheus/prometheus) Tj ET
+BT /F1 9 Tf 510 460 Td (Top 3, Previous Week's Top 3) Tj ET
+BT /F1 9 Tf 45 440 Td (4) Tj ET
+BT /F1 9 Tf 445 440 Td (13430.03) Tj ET
+BT /F1 9 Tf 85 440 Td (argoproj/argo-cd) Tj ET
+BT /F1 9 Tf 510 440 Td (Over 10,000, Previous Week's Over) Tj ET
+BT /F1 9 Tf 510 428 Td (10,000) Tj ET
+BT /F1 9 Tf 45 408 Td (5) Tj ET
+BT /F1 9 Tf 445 408 Td (11947.69) Tj ET
+BT /F1 9 Tf 85 408 Td (envoyproxy/envoy) Tj ET
+BT /F1 9 Tf 510 408 Td (Over 10,000, Previous Week's Over) Tj ET
+BT /F1 9 Tf 510 396 Td (10,000) Tj ET
+BT /F1 9 Tf 45 376 Td (6) Tj ET
+BT /F1 9 Tf 445 376 Td (11744.57) Tj ET
+BT /F1 9 Tf 85 376 Td (helm/helm) Tj ET
+BT /F1 9 Tf 510 376 Td (Over 10,000, Previous Week's Over) Tj ET
+BT /F1 9 Tf 510 364 Td (10,000) Tj ET
+BT /F1 9 Tf 45 344 Td (7) Tj ET
+BT /F1 9 Tf 445 344 Td (9835.28) Tj ET
+BT /F1 9 Tf 85 344 Td (kubernetes/minikube) Tj ET
+BT /F1 9 Tf 510 344 Td (None) Tj ET
+BT /F1 9 Tf 45 324 Td (8) Tj ET
+BT /F1 9 Tf 445 324 Td (8511.24) Tj ET
+BT /F1 9 Tf 85 324 Td (kubernetes/community) Tj ET
+BT /F1 9 Tf 510 324 Td (None) Tj ET
+BT /F1 9 Tf 45 304 Td (9) Tj ET
+BT /F1 9 Tf 445 304 Td (7759.09) Tj ET
+BT /F1 9 Tf 85 304 Td (containerd/containerd) Tj ET
+BT /F1 9 Tf 510 304 Td (None) Tj ET
+BT /F1 9 Tf 45 284 Td (10) Tj ET
+BT /F1 9 Tf 445 284 Td (3711.82) Tj ET
+BT /F1 9 Tf 85 284 Td (moby/buildkit) Tj ET
+BT /F1 9 Tf 510 284 Td (None) Tj ET
+BT /F1 9 Tf 45 264 Td (11) Tj ET
+BT /F1 9 Tf 445 264 Td (3344.89) Tj ET
+BT /F1 9 Tf 85 264 Td (kubernetes/enhancements) Tj ET
+BT /F1 9 Tf 510 264 Td (None) Tj ET
+BT /F1 9 Tf 45 244 Td (12) Tj ET
+BT /F1 9 Tf 445 244 Td (2450.94) Tj ET
+BT /F1 9 Tf 85 244 Td (containerd/nerdctl) Tj ET
+BT /F1 9 Tf 510 244 Td (None) Tj ET
+BT /F1 9 Tf 45 224 Td (13) Tj ET
+BT /F1 9 Tf 445 224 Td (1320.26) Tj ET
+BT /F1 9 Tf 85 224 Td (Azure/AKS) Tj ET
+BT /F1 9 Tf 510 224 Td (None) Tj ET
+BT /F1 9 Tf 45 204 Td (14) Tj ET
+BT /F1 9 Tf 445 204 Td (436.59) Tj ET
+BT /F1 9 Tf 85 204 Td (docker/for-win) Tj ET
+BT /F1 9 Tf 510 204 Td (None) Tj ET
+BT /F1 9 Tf 45 184 Td (15) Tj ET
+BT /F1 9 Tf 445 184 Td (128.61) Tj ET
+BT /F1 9 Tf 85 184 Td (microsoft/Windows-Containers) Tj ET
+BT /F1 9 Tf 510 184 Td (None) Tj ET
+BT /F1 9 Tf 45 164 Td (16) Tj ET
+BT /F1 9 Tf 445 164 Td (112.01) Tj ET
+BT /F1 9 Tf 85 164 Td (microsoft/windows-container-tools) Tj ET
+BT /F1 9 Tf 510 164 Td (None) Tj ET
+BT /F1 9 Tf 45 144 Td (17) Tj ET
+BT /F1 9 Tf 445 144 Td (20.47) Tj ET
+BT /F1 9 Tf 85 144 Td (microsoft/containers-toolkit) Tj ET
+BT /F1 9 Tf 510 144 Td (None) Tj ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000191 00000 n 
+0000000317 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+3580
+%%EOF

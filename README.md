@@ -73,7 +73,7 @@ running `python scripts/send_success_email.py` locally.
 
 The email identifies the repository, links to the workflow run, and attaches
 the weekly ranking PDF. Reports are saved in the repository-root
-`report-history/` directory and committed back to the workflow's branch before
+`snapshot-history/` directory and committed back to the workflow's branch before
 email is sent. Filenames use the generation date in fixed PST (UTC-8), for example
 `windows-container-project-popularity-tracker-2026-10-22.pdf`. Reruns on the same
 date replace that day's report; reports from earlier dates are retained. The

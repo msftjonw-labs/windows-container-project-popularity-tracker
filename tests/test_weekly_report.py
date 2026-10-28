@@ -16,7 +16,7 @@ class WeeklyReportTests(unittest.TestCase):
         )
         self.assertEqual(
             weekly_report.REPORT_DIRECTORY,
-            Path(weekly_report.__file__).resolve().parent.parent / "report-history",
+            Path(weekly_report.__file__).resolve().parent.parent / "snapshot-history",
         )
 
     def test_report_path_defaults_to_current_pacific_date(self):
@@ -34,7 +34,7 @@ class WeeklyReportTests(unittest.TestCase):
 
     def test_report_creates_history_directory_and_dated_pdf(self):
         with tempfile.TemporaryDirectory() as directory:
-            report_directory = Path(directory) / "report-history"
+            report_directory = Path(directory) / "snapshot-history"
             with patch.object(weekly_report, "REPORT_DIRECTORY", report_directory):
                 result = weekly_report.generate_weekly_report(
                     [("org/project", 20, ["Top 3"])], date(2026, 10, 22)

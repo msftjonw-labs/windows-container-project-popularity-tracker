@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 PACIFIC_STANDARD_TIME = timezone(timedelta(hours=-8))
-REPORT_DIRECTORY = Path(__file__).resolve().parent.parent / "report-history"
+REPORT_DIRECTORY = Path(__file__).resolve().parent.parent / "snapshot-history"
 
 
 def week_start(today=None):
